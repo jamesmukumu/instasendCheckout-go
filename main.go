@@ -1,8 +1,10 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+
 	"os"
 	"strings"
 
@@ -11,6 +13,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
+	"gopkg.in/gomail.v2"
 )
 
 //create a struct of data
@@ -20,7 +23,7 @@ Firstname string `json:"first_name"`
 Lastname string `json:"last_name"`
 Phonenumber int `json:"phone_number"`
 Amount int `json:"amount"`
-
+Email string `json:"email"`
 }
 
  
@@ -28,6 +31,7 @@ Amount int `json:"amount"`
 type Responseinstasend struct{
 Id string `json:"id"`
 CheckoutUrl string `json:"url"`
+Email string `json:"email"`
 
 }
 
@@ -37,11 +41,12 @@ Serversetup()
 
 
 }
-
+var Checkout Responseinstasend
 
 
 
 func Generatecheckoutlink(res http.ResponseWriter,req *http.Request){
+	var Payloadinfo Userpayment
 dotenv := godotenv.Load()
 if dotenv != nil {
 	log.Fatal(dotenv)
@@ -54,8 +59,8 @@ apiKeyinstasend := os.Getenv("publicKey")
 
 
 
-var Checkout Responseinstasend
-var Payloadinfo Userpayment
+
+
 
 client := http.Client{}
 //decode json
@@ -94,10 +99,10 @@ errorr := json.NewDecoder(response.Body).Decode(&Checkout)
 if errorr != nil {
 	panic(err)
 }
+Sendcheckoutlink(Checkout.CheckoutUrl,Checkout.Email)
 
-json.NewEncoder(res).Encode(map[string]string{
-	"checkOut":Checkout.CheckoutUrl,
-})
+json.NewEncoder(res).Encode(map[string]string{"Check out link":Checkout.CheckoutUrl})
+fmt.Println(Checkout.Email)
 
 defer response.Body.Close()
 
@@ -124,7 +129,42 @@ Router.HandleFunc("/post/details",Generatecheckoutlink).Methods("POST")
 fmt.Printf("Server listening for requests at %s",PORT)
 http.ListenAndServe(":"+PORT,Router)
 
+}
 
 
 
+
+
+func Sendcheckoutlink(checkoutlink string, checkoutemail string){
+dotenv := godotenv.Load()
+if dotenv != nil {
+	log.Fatal(dotenv.Error())
+	return
+}
+gmailPassword := os.Getenv("instasend")
+
+
+mail := gomail.NewMessage()
+mail.SetHeader("From","jamesmukumu03@gmail.com")
+mail.SetHeader("To",checkoutemail)
+mail.SetHeader("Subject","Check Out Link")
+mail.SetBody("text/plain",checkoutlink)
+
+
+//dialer
+dialer := gomail.NewDialer("smtp.gmail.com",587,"jamesmukumu03@gmail.com",gmailPassword)
+
+dialer.TLSConfig = &tls.Config{
+	InsecureSkipVerify: false,
+	ServerName: "smtp.gmail.com",
+}
+ 
+ 
+errorSendingmail := dialer.DialAndSend(mail)
+if errorSendingmail !=nil {
+	log.Fatal(errorSendingmail.Error())
+}
+
+
+ 
 }
